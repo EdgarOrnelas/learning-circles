@@ -1,16 +1,18 @@
 import datetime
 import dateutil.parser
 
-from django.shortcuts import get_object_or_404
-from django.core.urlresolvers import reverse
-from django.conf import settings
 from django import http
-from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings
+from django.contrib.auth.models import User
+from django.core.urlresolvers import reverse
+from django.shortcuts import get_object_or_404
+from django.template.defaultfilters import slugify
 from django.utils import timezone
 from django.utils.translation import ugettext as _
-from django.template.defaultfilters import slugify
-from django.contrib.auth.models import User
+from django.utils.decorators import method_decorator
+from django.views import View
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 
 from studygroups.models import Course
 from studygroups.models import StudyGroup
@@ -19,8 +21,8 @@ from studygroups.models import StudyGroupMeeting
 from studygroups.models import Team
 
 from uxhelpers.utils import json_response
+import json
 
-from django.views import View
 
 def _map_to_json(sg):
     data = {
@@ -99,7 +101,27 @@ class LearningCircleListView(View):
         return json_response(request, data)
  
 
+@method_decorator(csrf_exempt, name='dispatch')
 class SignupView(View):
-    def post(self, request):
-        pass
+    def post(self, request, *args, **kwargs):
+        study_group = get_object_or_404(StudyGroup, pk=kwargs.get('pk'))
+        json_data = json.loads(request.body)
+        # require name and valid (TODO) email
+        name = json_data.get('name')
+        email = json_data.get('email')
+        # mobile is optional, but needs to be (TODO) valid
+        mobile = json_data.get('mobile')
+        # TODO signup_questions can be any valid JSON
+
+        obj, created = Application.objects.get_or_create(study_group=study_group, email=email)
+
+        obj.name = name
+        if not mobile is None:
+            obj.mobile = mobile
+        obj.save()
+    
+        data = {"status": 200, "msg": _("user signup updated")}
+        if created:
+            data['message'] = _("User signed up")
+        return http.JsonResponse(data)
 
